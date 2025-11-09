@@ -455,6 +455,8 @@ def api_search_team():
 
 @app.route("/api/predict", methods=["POST"])
 def api_predict():
+    data = request.get_json()
+    print("Received JSON:", data)
     """
     Accepts JSON:
     {
@@ -541,8 +543,8 @@ def api_fixtures_today():
 # Static for favicon or assets (optional)
 @app.route("/favicon.ico")
 def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'templates'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    return '', 204
+
 
 # ==========================
 # Run app
