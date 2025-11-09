@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Football predictor</title>
+<style>
+  :root{
+    --bg1: #0f172a;
+    --bg2: #0b1226;
+    --card1: linear-gradient(135deg,#0ea5e9 0%, #7c3aed 100%);
+    --glass: rgba(255,255,255,0.06);
+    --accent: #38bdf8;
+    --text: #e6eef8;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+  body{
+    background: radial-gradient(1200px 600px at 10% 10%, rgba(124,58,237,0.15), transparent),
+                radial-gradient(900px 400px at 90% 90%, rgba(14,165,233,0.08), transparent),
+                linear-gradient(180deg,var(--bg1),var(--bg2));
+    color:var(--text);
+    display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .card{
+    width:min(900px, 96%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    border-radius:14px; padding:28px; box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+    backdrop-filter: blur(6px);
+  }
+  h1{margin:0 0 12px 0;font-size:28px;text-align:center}
+  .subtitle{font-size:13px;color:rgba(230,238,248,0.75);text-align:center;margin-bottom:18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:700px){ .grid{grid-template-columns:1fr} }
+  .field{display:flex;flex-direction:column}
+  label{font-size:12px;color:rgba(230,238,248,0.8);margin-bottom:6px}
+  input[type="text"], select{
+    background:var(--glass); border:1px solid rgba(255,255,255,0.04); padding:12px;border-radius:8px;color:var(--text);
+    outline:none; transition: box-shadow .12s, transform .06s;
+  }
+  input[type="text"]:focus, select:focus{ box-shadow:0 6px 20px rgba(14,165,233,0.12); transform: translateY(-1px); }
+  .predict-btn{
+    margin-top:8px;padding:12px 18px;border-radius:10px;border:none;font-weight:600;cursor:pointer;
+    background: linear-gradient(90deg,#06b6d4,#7c3aed); color:white; box-shadow: 0 8px 30px rgba(124,58,237,0.18);
+    transition: transform .12s, box-shadow .12s; width:100%;
+  }
+  .predict-btn:hover{ transform: translateY(-3px); box-shadow: 0 14px 40px rgba(124,58,237,0.26); }
+  .center{display:flex;align-items:center;justify-content:center;margin-top:18px}
+  .result{
+    margin-top:18px;padding:14px;border-radius:10px;background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.03);
+  }
+  .probs{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .prob{
+    min-width:120px;padding:12px;border-radius:10px;background:rgba(255,255,255,0.02);text-align:center;
+  }
+  .small{font-size:12px;color:rgba(230,238,248,0.7)}
+  .big{font-size:20px;font-weight:700;margin-top:6px}
+  .note{font-size:12px;color:rgba(230,238,248,0.6);margin-top:8px;text-align:center}
+  footer{font-size:12px;color:rgba(230,238,248,0.5);text-align:center;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Football predictor</h1>
+  <div class="subtitle">Pick teams and run a prediction — powered by SportMonks + fallback analysis</div>
+
+  <div class="grid">
+    <div class="field">
+      <label for="home">Home team (name or id)</label>
+      <input id="home" type="text" placeholder="e.g. Manchester United or 33" />
+      <small class="small">Type a name and press Tab to use name search (optional).</small>
+    </div>
+
+    <div class="field">
+      <label for="away">Away team (name or id)</label>
+      <input id="away" type="text" placeholder="e.g. Barcelona or 40" />
+      <small class="small">Type a name and press Tab to use name search (optional).</small>
+    </div>
+
+    <div class="field">
+      <label for="manual_note">Manual note (optional)</label>
+      <input id="manual_note" type="text" placeholder="e.g. my tip or reason" />
+    </div>
+
+    <div class="field">
+      <label>&nbsp;</label>
+      <button id="predictBtn" class="predict-btn">Predict</button>
+    </div>
+  </div>
+
+  <div id="resultBox" class="result" style="display:none;">
+    <div id="teams" style="text-align:center;font-weight:700"></div>
+    <div class="probs" style="margin-top:12px;">
+      <div class="prob">
+        <div class="small">HOME</div>
+        <div id="homeProb" class="big">-</div>
+        <div class="small" id="homeXG">xG -</div>
+      </div>
+      <div class="prob">
+        <div class="small">DRAW</div>
+        <div id="drawProb" class="big">-</div>
+      </div>
+      <div class="prob">
+        <div class="small">AWAY</div>
+        <div id="awayProb" class="big">-</div>
+        <div class="small" id="awayXG">xG -</div>
+      </div>
+    </div>
+    <div class="note" id="sourceNote"></div>
+  </div>
+
+  <div class="center"><div id="status" class="small"></div></div>
+  <footer>Auto daily predictions will append to your Google Sheet (if configured)</footer>
+</div>
+
+<script>
+async function predict(){
+  const home = document.getElementById('home').value.trim();
+  const away = document.getElementById('away').value.trim();
+  const note = document.getElementById('manual_note').value.trim();
+  if(!home || !away){ alert('Please provide both home and away team (id or name).'); return; }
+  document.getElementById('status').innerText = 'Predicting...';
+  document.getElementById('predictBtn').disabled = true;
+
+  // Try to interpret numeric ids
+  const payload = {};
+  if(/^\d+$/.test(home)) payload.home_id = parseInt(home);
+  else payload.home_name = home;
+  if(/^\d+$/.test(away)) payload.away_id = parseInt(away);
+  else payload.away_name = away;
+  if(note) payload.manual_note = note;
+  payload.append_sheet = true;
+
+  try{
+    const resp = await fetch('/api/predict', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if(resp.ok){
+      const p = data.prediction;
+      document.getElementById('resultBox').style.display = 'block';
+      document.getElementById('teams').innerText = (data.home_name || payload.home_name || payload.home_id) + '  vs  ' + (data.away_name || payload.away_name || payload.away_id);
+      document.getElementById('homeProb').innerText = (p.home_prob*100).toFixed(1) + '%';
+      document.getElementById('drawProb').innerText = (p.draw_prob*100).toFixed(1) + '%';
+      document.getElementById('awayProb').innerText = (p.away_prob*100).toFixed(1) + '%';
+      document.getElementById('homeXG').innerText = 'xG ' + p.home_xg;
+      document.getElementById('awayXG').innerText = 'xG ' + p.away_xg;
+      document.getElementById('sourceNote').innerText = 'Source: ' + p.source;
+      document.getElementById('status').innerText = 'Prediction saved to sheet (if configured).';
+    } else {
+      document.getElementById('status').innerText = 'Error: ' + (data.error || 'unknown');
+      alert('Error: ' + (data.error || JSON.stringify(data)));
+    }
+  }catch(e){
+    alert('Request failed: ' + e);
+  } finally {
+    document.getElementById('predictBtn').disabled = false;
+  }
+}
+
+document.getElementById('predictBtn').addEventListener('click', predict);
+
+// convenience: press Enter in either input -> predict
+['home','away','manual_note'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', function(e){
+    if(e.key === 'Enter') { e.preventDefault(); predict(); }
+  });
+});
+</script>
+</body>
+</html>

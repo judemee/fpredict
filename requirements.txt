@@ -1,0 +1,12 @@
+Flask==2.3.2
+requests==2.31.0
+gspread==5.11.0
+google-auth==2.22.0
+pandas==2.2.2
+Flask-APScheduler==1.12.7
+python-dotenv==1.0.0
+Flask-Mail==0.9.1
+numpy==1.26.4
+scipy==1.11.3
+pytz
+
