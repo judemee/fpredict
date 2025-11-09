@@ -9,4 +9,5 @@ Flask-Mail==0.9.1
 numpy==1.26.4
 scipy==1.11.3
 pytz
+gunicorn
 
