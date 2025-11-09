@@ -457,6 +457,7 @@ def api_search_team():
 def api_predict():
     data = request.get_json()
     print("Received JSON:", data)
+
     """
     Accepts JSON:
     {
@@ -466,38 +467,63 @@ def api_predict():
       "append_sheet": true/false (default true)
     }
     """
-    payload = request.get_json() or {}
+
+    payload = data or {}
     append_sheet = payload.get("append_sheet", True)
     manual_note = payload.get("manual_note", "")
+
+    # Extract IDs or Names
     home_id = payload.get("home_id")
     away_id = payload.get("away_id")
-    # Resolve by name if names provided
-    if not home_id and payload.get("home_name"):
-        s = search_team(payload.get("home_name"))
-        if s:
-            cand = s[0].get('data') if isinstance(s[0].get('data'), dict) else s[0]
-            home_id = cand.get('id')
-    if not away_id and payload.get("away_name"):
-        s = search_team(payload.get("away_name"))
-        if s:
-            cand = s[0].get('data') if isinstance(s[0].get('data'), dict) else s[0]
-            away_id = cand.get('id')
-    if not home_id or not away_id:
-        return jsonify({"error":"home_id and away_id required (or provide home_name/away_name)"}), 400
+    home_name = payload.get("home_name")
+    away_name = payload.get("away_name")
 
+    # --- Normalize names (case-insensitive search) ---
+    if home_name:
+        home_name = home_name.strip().title()
+    if away_name:
+        away_name = away_name.strip().title()
+
+    # --- Resolve team IDs if only names are provided ---
+    if not home_id and home_name:
+        try:
+            results = search_team(home_name)
+            if results:
+                candidate = results[0].get('data') if isinstance(results[0].get('data'), dict) else results[0]
+                home_id = candidate.get('id')
+        except Exception as e:
+            print("Home name lookup failed:", e)
+
+    if not away_id and away_name:
+        try:
+            results = search_team(away_name)
+            if results:
+                candidate = results[0].get('data') if isinstance(results[0].get('data'), dict) else results[0]
+                away_id = candidate.get('id')
+        except Exception as e:
+            print("Away name lookup failed:", e)
+
+    # --- If still no IDs, return an error ---
+    if not home_id or not away_id:
+        return jsonify({
+            "error": "home_id and away_id required (or provide valid home_name/away_name)"
+        }), 400
+
+    # --- Compute prediction ---
     try:
         pred = calculate_match_probability(home_id, away_id)
-        # Resolve names for readable sheet append
-        home_name = ""
-        away_name = ""
+
+        # Resolve names for spreadsheet logging
         try:
             th = get_team_by_id(int(home_id))
             ta = get_team_by_id(int(away_id))
-            home_name = safe_get(th,'name') or str(home_id)
-            away_name = safe_get(ta,'name') or str(away_id)
+            home_name = safe_get(th, 'name') or str(home_id)
+            away_name = safe_get(ta, 'name') or str(away_id)
         except Exception:
-            home_name = str(home_id); away_name = str(away_id)
+            home_name = str(home_id)
+            away_name = str(away_id)
 
+        # Append to Google Sheet (optional)
         if append_sheet:
             row = [
                 pred['timestamp'],
@@ -510,15 +536,22 @@ def api_predict():
                 pred['home_xg'],
                 pred['away_xg'],
                 pred['source'],
-                manual_note or "manual" if payload.get("manual_note") else "api_predict"
+                manual_note or "api_predict"
             ]
             try:
                 ensure_sheet_and_append([row])
             except Exception as e:
                 print("Warning: couldn't append to sheet:", e)
-        return jsonify({"prediction": pred, "home_name": home_name, "away_name": away_name})
+
+        return jsonify({
+            "prediction": pred,
+            "home_name": home_name,
+            "away_name": away_name
+        })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/fixtures/today", methods=["GET"])
 def api_fixtures_today():
