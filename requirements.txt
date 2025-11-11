@@ -11,3 +11,10 @@ scipy==1.11.3
 pytz
 gunicorn
 
+Flask
+schedule
+python-dotenv
+requests
+pandas
+numpy
+gunicorn
